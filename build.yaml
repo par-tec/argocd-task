@@ -1,0 +1,45 @@
+# A kubernetes Job that builds a Docker image based on python:3.12 using buildah
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: build-python-image
+spec:
+  backoffLimit: 4
+  template:
+    spec:
+      initContainers:
+      - name: git-sync
+        image: alpine/git
+        command: ["git", "clone", "--depth", "1", "https://github.com/par-tec/argocd-task.git", "/app"]
+        volumeMounts:
+        - name: dockerfile
+          mountPath: /app
+      containers:
+      - name: build-python-image
+        image: quay.io/buildah/stable:latest
+        command: ['sh', '-c', 'buildah bud -t my-python-image:latest .']
+        volumeMounts:
+        - name: varlibcontainers
+          mountPath: /var/lib/containers
+        - name: dockerfile
+          mountPath: "/app"
+      restartPolicy: Never
+      volumes:
+      - name: varlibcontainers
+        emptyDir: {}
+      - name: dockerfile
+        emptyDir: {}
+
+---
+# A configmap with a script
+# that:
+# - clone a remote git repository
+# - build a Docker image based on python:3.12 using buildah
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: build-python-image-script
+data:
+  build-python-image.sh: |
+    #!/bin/sh
+    buildah bud -t my-python-image:latest .
